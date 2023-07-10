@@ -1,0 +1,49 @@
+services:
+  - docker:dind
+
+.test: &test-script |
+  docker build -t test .
+  mkdir -p build
+  docker run --rm -v $(pwd)/build:/build test -- cp -r /usr/share/nginx/html/ /build
+
+
+.beta: &beta-script |
+  docker build -t private.parrot.run/website:beta .
+  docker login -u $DOCKER_REGISTRY_USER -p $DOCKER_REGISTRY_PASSWORD private.parrot.run
+  docker push private.parrot.run/website:beta
+
+
+.prod: &prod-script |
+  docker build -t private.parrot.run/website:latest .
+  docker login -u $DOCKER_REGISTRY_USER -p $DOCKER_REGISTRY_PASSWORD private.parrot.run
+  docker push private.parrot.run/website:latest
+
+
+
+build_production:
+  stage: build
+  only:
+    - master
+  image: docker:latest
+  script:
+    - *prod-script
+
+build_beta:
+  stage: build
+  only:
+    - beta
+  image: docker:latest
+  script:
+    - *beta-script
+
+build_test:
+  stage: build
+  except:
+    - beta
+    - master
+  image: docker:latest
+  artifacts:
+    paths:
+      - build
+  script:
+    - *test-script
